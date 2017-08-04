@@ -25,6 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/fission/fission"
+	"strings"
 )
 
 func (api *API) EnvironmentApiList(w http.ResponseWriter, r *http.Request) {
@@ -77,15 +78,27 @@ func (api *API) EnvironmentApiCreate(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) EnvironmentApiGet(w http.ResponseWriter, r *http.Request) {
 	var m fission.Metadata
+	var env *fission.Environment
 
 	vars := mux.Vars(r)
 	m.Name = vars["environment"]
 	m.Uid = r.FormValue("uid") // empty if uid is absent
 
-	env, err := api.EnvironmentStore.Get(&m)
-	if err != nil {
-		api.respondWithError(w, err)
-		return
+	// TODO should just be inserted into the store, if workflow-engine is available
+	// Lookup environment, unless it is the special 'workflow' case
+	if strings.EqualFold(m.Name, "workflow") {
+		env = &fission.Environment{
+			Metadata: fission.Metadata{
+				Name: "workflow",
+			},
+		}
+	} else {
+		fetched, err := api.EnvironmentStore.Get(&m)
+		if err != nil {
+			api.respondWithError(w, err)
+			return
+		}
+		env = fetched
 	}
 
 	resp, err := json.Marshal(env)

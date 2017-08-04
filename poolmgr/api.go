@@ -33,6 +33,12 @@ import (
 	"github.com/fission/fission"
 	"github.com/fission/fission/cache"
 	controllerclient "github.com/fission/fission/controller/client"
+	"github.com/fission/fission-workflow/pkg/apiserver"
+	"context"
+	"github.com/fission/fission-workflow/pkg/util"
+	"github.com/fission/fission-workflow/pkg/types"
+	"github.com/golang/protobuf/jsonpb"
+	"bytes"
 )
 
 type funcSvc struct {
@@ -221,6 +227,41 @@ func (api *API) createServiceForFunction(m *fission.Metadata) (string, error) {
 	env, err := api.getFunctionEnv(m)
 	if err != nil {
 		return "", err
+	}
+
+	// TODO for some reason workflows are created/specialized twice. Should fix and make workflow creation idempotent
+	// Special case: Workflow Env
+	log.Printf("checking if env is workflow '%s'", env.Name)
+	if strings.EqualFold(env.Name, "workflow") {
+		log.Printf("[%v] function is a workflow", m.Name)
+		wfB, err := api.controller.FunctionGetRaw(m)
+		if err != nil {
+			return "", fmt.Errorf("Failed to retrieve WorkflowSpec: %v", err)
+		}
+
+		wf := &types.WorkflowSpec{}
+		err = jsonpb.Unmarshal(bytes.NewReader(wfB), wf)
+		if err != nil {
+			fmt.Printf("data: %s", wfB)
+			fmt.Printf("data: %v", wfB)
+			return "", err
+		}
+		log.Printf("wf: %v", wf)
+
+		log.Printf("[%v] connecting to workflow-engine", m.Name)
+
+		conn, err := util.NewGrpcConn("workflow-engine:135")
+		defer conn.Close()
+		wfClient := apiserver.NewWorkflowAPIClient(conn)
+		log.Printf("[%v] uploading workflow", m.Name)
+		resp, err := wfClient.Create(context.Background(), wf) // TODO create only if non-existent
+		if err != nil {
+			log.Printf("wf: %v", wf)
+			return "", err
+		}
+
+		wfInvokeUrl := fmt.Sprintf("workflow-engine/invocation/sync?workflowId=%s", resp.Id)
+		return wfInvokeUrl, nil
 	}
 
 	// from Env -> get GenericPool

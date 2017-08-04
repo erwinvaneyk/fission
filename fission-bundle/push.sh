@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 tag=$1
 if [ -z "$tag" ]

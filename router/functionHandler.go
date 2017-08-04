@@ -29,6 +29,7 @@ import (
 
 	"github.com/fission/fission"
 	poolmgrClient "github.com/fission/fission/poolmgr/client"
+	"strings"
 )
 
 type functionHandler struct {
@@ -120,7 +121,9 @@ func (fh *functionHandler) handler(responseWriter http.ResponseWriter, request *
 	} else {
 		// if we're using our cache, asynchronously tell
 		// poolmgr we're using this service
-		go fh.tapService(serviceUrl)
+		if !strings.HasPrefix(serviceUrl.Host, "workflow") {
+			go fh.tapService(serviceUrl)
+		}
 	}
 
 	// Proxy off our request to the serviceUrl, and send the response back.
@@ -137,7 +140,16 @@ func (fh *functionHandler) handler(responseWriter http.ResponseWriter, request *
 		// doesn't do any routing.  In the future if we have
 		// multiple functions per container, we could use the
 		// function metadata here.
-		req.URL.Path = "/"
+		if strings.HasPrefix(serviceUrl.Host, "workflow") {
+			req.URL.Path = serviceUrl.Path
+			req.URL.RawQuery = serviceUrl.RawQuery
+		} else {
+			req.URL.Path = "/"
+		}
+		log.Printf("[WF] serviceUrl: %v", serviceUrl)
+		log.Printf("[WF] serviceUrl.host: %s", serviceUrl.Host)
+		log.Printf("[WF] serviceUrl.host: %s", serviceUrl.Host)
+		log.Printf("[WF] url: %s", req.URL)
 
 		// leave the query string intact (req.URL.RawQuery)
 
