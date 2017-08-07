@@ -260,25 +260,26 @@ func (api *API) createServiceForFunction(m *fission.Metadata) (string, error) {
 			return "", err
 		}
 
-		wfInvokeUrl := fmt.Sprintf("workflow-engine/invocation/sync?workflowId=%s", resp.Id)
+		wfInvokeUrl := fmt.Sprintf("workflow-engine:90?workflowId=%s", resp.Id)
 		return wfInvokeUrl, nil
-	}
+	} else {
 
-	// from Env -> get GenericPool
-	log.Printf("[%v] getting generic pool for env", m.Name)
-	pool, err := api.poolMgr.GetPool(env)
-	if err != nil {
-		return "", err
-	}
+		// from Env -> get GenericPool
+		log.Printf("[%v] getting generic pool for env", m.Name)
+		pool, err := api.poolMgr.GetPool(env)
+		if err != nil {
+			return "", err
+		}
 
-	// from GenericPool -> get one function container
-	// (this also adds to the cache)
-	log.Printf("[%v] getting function service from pool", m.Name)
-	fsvc, err := pool.GetFuncSvc(m)
-	if err != nil {
-		return "", err
+		// from GenericPool -> get one function container
+		// (this also adds to the cache)
+		log.Printf("[%v] getting function service from pool", m.Name)
+		fsvc, err := pool.GetFuncSvc(m)
+		if err != nil {
+			return "", err
+		}
+		return fsvc.address, nil
 	}
-	return fsvc.address, nil
 }
 
 // find funcSvc and update its atime

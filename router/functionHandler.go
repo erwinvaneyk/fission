@@ -129,33 +129,49 @@ func (fh *functionHandler) handler(responseWriter http.ResponseWriter, request *
 	// Proxy off our request to the serviceUrl, and send the response back.
 	// TODO: As an optimization we may want to cache proxies too -- this might get us
 	// connection reuse and possibly better performance
-	director := func(req *http.Request) {
-		log.Printf("Proxying request for %v to %v", req.URL, serviceUrl.Host)
+	var director func(req *http.Request)
+	if strings.HasPrefix(serviceUrl.Host, "workflow") {
+		director = func(req *http.Request) {
+			log.Printf("Proxying request for %v to %v", req.URL, serviceUrl.Host)
 
-		// send this request to serviceurl
-		req.URL.Scheme = serviceUrl.Scheme
-		req.URL.Host = serviceUrl.Host
-
-		// To keep the function run container simple, it
-		// doesn't do any routing.  In the future if we have
-		// multiple functions per container, we could use the
-		// function metadata here.
-		if strings.HasPrefix(serviceUrl.Host, "workflow") {
+			// send this request to serviceurl
+			req.URL.Scheme = serviceUrl.Scheme
+			req.URL.Host = serviceUrl.Host
 			req.URL.Path = serviceUrl.Path
 			req.URL.RawQuery = serviceUrl.RawQuery
-		} else {
-			req.URL.Path = "/"
+
+			log.Printf("[WF] serviceUrl: %v", serviceUrl)
+			log.Printf("[WF] serviceUrl.host: %s", serviceUrl.Host)
+			log.Printf("[WF] serviceUrl.host: %s", serviceUrl.Host)
+			log.Printf("[WF] url: %s", req.URL)
+
+			// leave the query string intact (req.URL.RawQuery)
+
+			if _, ok := req.Header["User-Agent"]; !ok {
+				// explicitly disable User-Agent so it's not set to default value
+				req.Header.Set("User-Agent", "")
+			}
 		}
-		log.Printf("[WF] serviceUrl: %v", serviceUrl)
-		log.Printf("[WF] serviceUrl.host: %s", serviceUrl.Host)
-		log.Printf("[WF] serviceUrl.host: %s", serviceUrl.Host)
-		log.Printf("[WF] url: %s", req.URL)
+	} else {
+		director = func(req *http.Request) {
+			log.Printf("Proxying request for %v to %v", req.URL, serviceUrl.Host)
 
-		// leave the query string intact (req.URL.RawQuery)
+			// send this request to serviceurl
+			req.URL.Scheme = serviceUrl.Scheme
+			req.URL.Host = serviceUrl.Host
 
-		if _, ok := req.Header["User-Agent"]; !ok {
-			// explicitly disable User-Agent so it's not set to default value
-			req.Header.Set("User-Agent", "")
+			// To keep the function run container simple, it
+			// doesn't do any routing.  In the future if we have
+			// multiple functions per container, we could use the
+			// function metadata here.
+			req.URL.Path = "/"
+
+			// leave the query string intact (req.URL.RawQuery)
+
+			if _, ok := req.Header["User-Agent"]; !ok {
+				// explicitly disable User-Agent so it's not set to default value
+				req.Header.Set("User-Agent", "")
+			}
 		}
 	}
 
